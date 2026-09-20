@@ -1,0 +1,324 @@
+"Need-to-Know" Principle (Navigability)
+Does Class A need to call methods on Class B to do its job?
+
+Does Building need to talk to Elevator? Yes, to trigger maintenance checks or initialize the system.
+Does Elevator need to talk to Building? No. An elevator moves between integer floor numbers (0, 1, 2). It doesn't care which building it is installed in.
+Decision: Direction should be one-way (Building → Elevator), never bi-directional.
+
+import java.util.*;
+import java.util.concurrent.*;
+
+// ==========================================
+// 1. ENUMS & REQUEST MODEL
+// ==========================================
+public enum RequestType {
+    PICKUP_UP,
+    PICKUP_DOWN,
+    DESTINATION
+}
+
+public enum Direction {
+    UP, DOWN, IDLE
+}
+
+public enum ElevatorState {
+    IDLE, MOVING, DOOR_OPEN, OVERLOADED
+}
+
+public class Request {
+    private final int floor;
+    private final RequestType requestType;
+
+    public Request(int floor, RequestType requestType) {
+        this.floor = floor;
+        this.requestType = requestType;
+    }
+
+    public int getFloor() { return floor; }
+    public RequestType getRequestType() { return requestType; }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Request)) return false;
+        Request request = (Request) o;
+        return floor == request.floor && requestType == request.requestType;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(floor, requestType);
+    }
+
+    @Override
+    public String toString() {
+        return "[Floor " + floor + " | " + requestType + "]";
+    }
+}
+
+// ==========================================
+// 2. STRATEGY INTERFACES & IMPLEMENTATIONS
+// ==========================================
+public interface ElevatorSelectionStrategy {
+    Elevator selectElevator(Request request, List<Elevator> elevators);
+}
+
+public class BestElevatorStrategy implements ElevatorSelectionStrategy {
+
+    @Override
+    public Elevator selectElevator(Request request, List<Elevator> elevators) {
+        Elevator bestElevator = null;
+        int minCost = Integer.MAX_VALUE;
+
+        for (Elevator elevator : elevators) {
+            if (elevator.getElevatorState() == ElevatorState.OVERLOADED) {
+                continue;
+            }
+
+            int cost = calculateCost(elevator, request);
+            if (cost < minCost) {
+                minCost = cost;
+                bestElevator = elevator;
+            }
+        }
+        return bestElevator;
+    }
+
+    private int calculateCost(Elevator elevator, Request request) {
+        int distance = Math.abs(elevator.getCurrFloor() - request.getFloor());
+
+        if (elevator.getCurrDirection() == Direction.IDLE) {
+            return distance;
+        }
+
+        boolean isSameDirection = false;
+        if (elevator.getCurrDirection() == Direction.UP && request.getFloor() >= elevator.getCurrFloor()) {
+            if (request.getRequestType() == RequestType.PICKUP_UP || request.getRequestType() == RequestType.DESTINATION) {
+                isSameDirection = true;
+            }
+        } else if (elevator.getCurrDirection() == Direction.DOWN && request.getFloor() <= elevator.getCurrFloor()) {
+            if (request.getRequestType() == RequestType.PICKUP_DOWN || request.getRequestType() == RequestType.DESTINATION) {
+                isSameDirection = true;
+            }
+        }
+
+        return isSameDirection ? distance : distance + 100; // Penalty if moving away
+    }
+}
+
+public interface NextStopStrategy {
+    Request getNextRequest(Elevator elevator);
+}
+
+public class NearestNextStopStrategy implements NextStopStrategy {
+
+    @Override
+    public Request getNextRequest(Elevator elevator) {
+        Set<Request> requests = elevator.getUserRequests();
+        if (requests.isEmpty()) return null;
+
+        Request bestRequest = null;
+        int minDistance = Integer.MAX_VALUE;
+
+        // Pass 1: Look for closest request ahead in the CURRENT direction
+        for (Request req : requests) {
+            int diff = req.getFloor() - elevator.getCurrFloor();
+
+            if (elevator.getCurrDirection() == Direction.UP && diff >= 0) {
+                if (diff < minDistance) {
+                    minDistance = diff;
+                    bestRequest = req;
+                }
+            } else if (elevator.getCurrDirection() == Direction.DOWN && diff <= 0) {
+                int absDiff = Math.abs(diff);
+                if (absDiff < minDistance) {
+                    minDistance = absDiff;
+                    bestRequest = req;
+                }
+            }
+        }
+
+        // Pass 2: Fallback to nearest request overall if none found ahead
+        if (bestRequest == null) {
+            for (Request req : requests) {
+                int dist = Math.abs(elevator.getCurrFloor() - req.getFloor());
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    bestRequest = req;
+                }
+            }
+        }
+
+        return bestRequest;
+    }
+}
+
+// ==========================================
+// 3. ELEVATOR ENTITY
+// ==========================================
+public class Elevator {
+    private final int id;
+    private volatile int currFloor;
+    private volatile Direction currDirection;
+    private volatile ElevatorState elevatorState;
+
+    // THREAD-SAFE CONCURRENT SET: Combines internal & external requests safely
+    private final Set<Request> userRequests = ConcurrentHashMap.newKeySet();
+    private final NextStopStrategy nextStopStrategy;
+
+    public Elevator(int id, NextStopStrategy nextStopStrategy) {
+        this.id = id;
+        this.currFloor = 0;
+        this.currDirection = Direction.IDLE;
+        this.elevatorState = ElevatorState.IDLE;
+        this.nextStopStrategy = nextStopStrategy;
+    }
+
+    public void addRequest(Request request) {
+        userRequests.add(request);
+        if (this.elevatorState == ElevatorState.IDLE) {
+            this.elevatorState = ElevatorState.MOVING;
+        }
+    }
+
+    // Single step transition executed during system clock-tick
+    public synchronized void processNextMove() {
+        if (elevatorState == ElevatorState.DOOR_OPEN) {
+            // Door closes on the next tick after stopping
+            elevatorState = userRequests.isEmpty() ? ElevatorState.IDLE : ElevatorState.MOVING;
+            if (elevatorState == ElevatorState.IDLE) {
+                currDirection = Direction.IDLE;
+            }
+            System.out.println("Elevator " + id + " [Doors Closed]");
+            return;
+        }
+
+        if (userRequests.isEmpty()) {
+            this.elevatorState = ElevatorState.IDLE;
+            this.currDirection = Direction.IDLE;
+            return;
+        }
+
+        Request nextRequest = nextStopStrategy.getNextRequest(this);
+        if (nextRequest == null) return;
+
+        int targetFloor = nextRequest.getFloor();
+
+        if (targetFloor > currFloor) {
+            currDirection = Direction.UP;
+            elevatorState = ElevatorState.MOVING;
+            currFloor++;
+            System.out.println("Elevator " + id + " moving UP -> Floor " + currFloor);
+        } else if (targetFloor < currFloor) {
+            currDirection = Direction.DOWN;
+            elevatorState = ElevatorState.MOVING;
+            currFloor--;
+            System.out.println("Elevator " + id + " moving DOWN -> Floor " + currFloor);
+        }
+
+        // Arrived at destination floor
+        if (currFloor == targetFloor) {
+            this.elevatorState = ElevatorState.DOOR_OPEN;
+            System.out.println(">>> Elevator " + id + " ARRIVED at Floor " + currFloor + " [DOORS OPEN] <<<");
+            // Atomic removal of all requests fulfilled at this floor
+            userRequests.removeIf(req -> req.getFloor() == currFloor);
+        }
+    }
+
+    public int getId() { return id; }
+    public int getCurrFloor() { return currFloor; }
+    public Direction getCurrDirection() { return currDirection; }
+    public ElevatorState getElevatorState() { return elevatorState; }
+    public Set<Request> getUserRequests() { return userRequests; }
+}
+
+// ==========================================
+// 4. ELEVATOR SYSTEM (Controller)
+// ==========================================
+public class ElevatorSystem {
+    private final List<Elevator> allElevators;
+    private final ElevatorSelectionStrategy selectionStrategy;
+
+    // BOUNDED BLOCKING QUEUE: Protects system against OOM under heavy load
+    private final BlockingQueue<Request> unassignedExternalRequests;
+
+    public ElevatorSystem(List<Elevator> allElevators, ElevatorSelectionStrategy selectionStrategy, int maxQueueCapacity) {
+        this.allElevators = allElevators;
+        this.selectionStrategy = selectionStrategy;
+        this.unassignedExternalRequests = new LinkedBlockingQueue<>(maxQueueCapacity);
+    }
+
+    // Thread-safe request handler (called concurrently by external APIs/Controllers)
+    public void handleRequest(Request request) {
+        Elevator selected = selectionStrategy.selectElevator(request, allElevators);
+        if (selected != null) {
+            System.out.println("[ASSIGNED] Request " + request + " -> Elevator " + selected.getId());
+            selected.addRequest(request);
+        } else {
+            // offer() returns false non-blockingly if queue capacity is reached
+            boolean queued = unassignedExternalRequests.offer(request);
+            if (queued) {
+                System.out.println("[QUEUED] Request " + request + " added to unassigned retry queue.");
+            } else {
+                System.out.println("[REJECTED] System overloaded. Request " + request + " dropped!");
+            }
+        }
+    }
+
+    // CENTRAL TICK FUNCTION: Processes unassigned requests and steps each elevator state
+    public synchronized void step() {
+        System.out.println("\n--- [ SYSTEM CLOCK TICK ] ---");
+
+        // 1. Retry dispatching unassigned queued requests
+        int pendingQueueSize = unassignedExternalRequests.size();
+        for (int i = 0; i < pendingQueueSize; i++) {
+            Request pendingRequest = unassignedExternalRequests.poll();
+            if (pendingRequest == null) break;
+
+            Elevator selected = selectionStrategy.selectElevator(pendingRequest, allElevators);
+            if (selected != null) {
+                System.out.println("[RE-ASSIGNED] Queued Request " + pendingRequest + " -> Elevator " + selected.getId());
+                selected.addRequest(pendingRequest);
+            } else {
+                // Return back to queue if no elevator is available yet
+                unassignedExternalRequests.offer(pendingRequest);
+            }
+        }
+
+        // 2. Advance every elevator by one movement step
+        for (Elevator elevator : allElevators) {
+            elevator.processNextMove();
+        }
+    }
+}
+
+// ==========================================
+// 5. DEMO DRIVER / MAIN CLASS
+// ==========================================
+public class Main {
+    public static void main(String[] args) {
+        NextStopStrategy nextStopStrategy = new NearestNextStopStrategy();
+
+        // Initialize 2 Elevators
+        Elevator e1 = new Elevator(1, nextStopStrategy);
+        Elevator e2 = new Elevator(2, nextStopStrategy);
+        List<Elevator> elevators = Arrays.asList(e1, e2);
+
+        ElevatorSelectionStrategy selectionStrategy = new BestElevatorStrategy();
+        
+        // ElevatorSystem with queue capacity bounded to 1000
+        ElevatorSystem system = new ElevatorSystem(elevators, selectionStrategy, 1000);
+
+        // 1. Submit concurrent floor requests
+        system.handleRequest(new Request(3, RequestType.PICKUP_UP));
+        system.handleRequest(new Request(7, RequestType.PICKUP_DOWN));
+
+        // Simulate passenger entering Elevator 1 and pressing internal floor button
+        e1.addRequest(new Request(5, RequestType.DESTINATION));
+
+        // 2. Simulate System Clock Ticks
+        for (int tick = 1; tick <= 8; tick++) {
+            system.step();
+        }
+    }
+}
