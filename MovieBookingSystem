@@ -1,0 +1,525 @@
+import java.util.*;
+import java.lang.*;
+import java.io.*;
+
+
+
+Requirements
+
+1.00 The system should allow users to view the list of movies playing in different theaters.
+1.01 Users should be able to select a movie, theater, and show timing to book tickets.
+1.0 User selects theater with multiple screens with different seat arrangment.
+1.01 Every screen has multiple shows with different movie
+1.1. User select theater and all shows with timings must be shown.
+2. User selects the particular show then selects seat.(unocuppied for others)
+3. Proceeds to payment (via UPI, Cash, Card)
+3.1 Ticket generation
+4. Prevent double booking
+5. Users can select seats, which become temporarily unavailable to other users.
+Entities
+
+- Theater
+- Screen 
+- Show 
+- Movie  
+- Seat 
+- Ticket 
+- User 
+
+
+RelationShip
+
+- Theater -> Screens 
+- Screen -> seats 
+- Show -> movie
+- Show -> screen
+- show -> showSeats
+- Ticket contains user(or userId not sure), show, seat
+
+class City{
+    int id;
+    string name;
+}
+
+class Theater {
+    int theaterId;
+    List<Screens> allScreens;
+}
+
+class Screen {
+     int screenId;
+     List<Seats> allSeats;
+}
+
+class Movie {
+    string movieName;
+    int id;
+    long duration;
+}
+
+class Shows {
+     int showId;
+     Screen screen;
+     Movie movie;
+     int startTime;
+     int endTime;
+     List<ShowSeat> currShowSeats;
+}
+
+class Seat {
+    int seatId;
+    int price;
+    int row;
+    int col;
+    SeatSize seatSize;
+    
+    int getPrice(){
+        return this.price;
+    }
+}
+
+
+class ShowSeat {
+    Seat seat;
+    SeatStatus currSeatStatus;
+    
+    
+    Seat getSeat(){
+        return seat;
+    }
+    
+    void bookSeat(){
+        this.currSeatStatus = BOOKED;
+    }
+}
+
+
+class Booking {
+    User user;
+    Show show;
+    List<ShowSeat> seats;
+    double totalPrice;
+    BookingStatus bookingStatus;
+    
+    Booking (User user, Show show, List<ShowSeat> seats, int price){
+        this.user = user;
+        this.show = show;
+        this.seats = seats;
+        this.price = -1;
+        this.bookingStatus = BookingStatus.IN_PROGRESS;
+    }
+    
+    void setStatus(BookingStatus bookingStatus){
+        this.bookingStatus = bookingStatus;
+    }
+}
+
+enum SeatStatus{
+    VACANT,
+    OCCUPIED,
+    LOCKED
+}
+
+enum SeatSize {
+    GOLD,
+    REGULAR,
+    PREMIUM
+}
+
+enum BookingStatus {
+    CONFIRMED,
+    CANCELLED,
+    IN_PROGRESS
+}
+
+
+interface PaymentStrategy {
+    boolean processPayemnt (double price) ;
+} 
+
+
+CreditCardPaymentStrategy implements PaymentStrategy {
+     boolean processPayment(double price){
+         System.out.println("Processing payment via credit card....");
+         return true;
+     }
+}
+
+
+interface LockStrategy{
+    void lock(List<ShowSeat> seats);
+    void unlock(List<ShowSeat> seats);
+}
+
+
+class RedisLock implements LockStrategy {
+    
+    private final ConcurrentHashMap<String, ShowSeat> seatLocks = new ConcurrentHashMap<>();
+   
+    public boolean lock(List<ShowSeat> seats) {
+        List<ShowSeat> successfullyLocked = new ArrayList<>();
+        
+        for (ShowSeat showSeat : seats) {
+            // putIfAbsent is atomic! It prevents race conditions between two threads.
+            if (seatLocks.putIfAbsent(showSeat.getShowSeatId(), showSeat) == null) {
+                successfullyLocked.add(showSeat);
+            } else {
+                // LOCK FAILED! Someone else got this seat. We must rollback what we already locked.
+                unlock(successfullyLocked);
+                return false; 
+            }
+        }
+        return true;
+    }
+    
+    public void unlock(List<ShowSeat> seats) {
+        for (ShowSeat showSeat : seats) {
+            seatLocks.remove(showSeat.getShowSeatId());
+        }
+    }
+}
+
+class BookMyShow {
+    
+    List<Movies> allMovies;
+    Map<City, List<Theaters>> cityTheaterMap;
+    Map<Theater, List<Shows>> theaterShowMap;
+    LockStrategy lockStrategy;
+    PaymentStrategy paymentStrategy;
+    
+    BookMyShow (PaymentService paymentService){
+        this.paymentStrategy = new UpiPaymentStrategy();
+        this.LockStrategy = new RedisLock();
+    }
+    
+    
+    Map<Theater, List<Shows>> getAllTheaterShows(Movie movie, City city){
+        List<Theater> allCityTheaters = cityTheaterMap.get(city);
+        Map<Theater, List<Shows>> allTheaterShow = new Map();
+        for(Theater theater : allCityTheaters){
+            allTheaterShow[theater].add(theaterShowMap.get(theater));
+        }
+        
+        return allTheaterShow;
+    }
+    
+    
+    Booking bookShow(User user, Show show, List<ShowSeat>selectedSeat){
+        int cost = 0;
+        Booking booking = new Booking(user, show, seats, cost, show.getMovie());
+        if (!lockStrategy.lock(selectedSeats)) {
+        throw new RuntimeException("Seats are currently being booked by someone else.");
+        }
+        try {
+            {
+                for(ShowSeat showSeat : selectedSeat){
+                    cost += showSeat.getSeat().getPrice();
+                    showSeat.setStatus(SeatStatus.LOCKED);
+                }
+                
+                if(paymentService.processPayemnt(cost)){
+                    booking.setPrice(cost);
+                    booking.setStatus(BookingStatus.CONFIRMED)
+                    for(ShowSeat seat : selectedSeat){
+                        sheat.setStatus(SeatStatus.OCCUPIED);
+                    }
+                    
+                }else{
+                    booking.setStatus(BookingStatus.FAILED);
+                }
+                 return booking;
+            } finally {
+                LockStrategy.unlock(selectedSeat);
+            }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class Codechef
+{
+	public static void main (String[] args) throws java.lang.Exception
+	{
+		// your code goes here
+
+	}
+}
+
+
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.time.LocalDateTime;
+
+// ==========================================
+// 1. ENUMS
+// ==========================================
+enum SeatStatus {
+    VACANT, OCCUPIED, LOCKED
+}
+
+enum SeatCategory {
+    GOLD, REGULAR, PREMIUM
+}
+
+enum BookingStatus {
+    CONFIRMED, CANCELLED, IN_PROGRESS, FAILED
+}
+
+// ==========================================
+// 2. ENTITIES (Domain Models)
+// ==========================================
+class User {
+    private String userId;
+    private String name;
+    // Getters & Setters...
+}
+
+class City {
+    private int id;
+    private String name;
+    
+    public int getId() { return id; }
+}
+
+class Theater {
+    private int theaterId;
+    private List<Screen> allScreens;
+    
+    public int getTheaterId() { return theaterId; }
+}
+
+class Screen {
+    private int screenId;
+    private List<Seat> allSeats;
+}
+
+class Movie {
+    private int id;
+    private String movieName;
+    private long durationInMinutes;
+    
+    public int getId() { return id; }
+}
+
+class Seat {
+    private String seatId;
+    private int row;
+    private int col;
+    private SeatCategory category;
+    
+    // Note: Price is removed from here! Physical seats don't have static prices.
+    public String getSeatId() { return seatId; }
+}
+
+class Show {
+    private int showId;
+    private Screen screen;
+    private Movie movie;
+    private Theater theater;
+    private LocalDateTime startTime;
+    private LocalDateTime endTime;
+    
+    public Movie getMovie() { return movie; }
+}
+
+class ShowSeat {
+    private String showSeatId;
+    private Seat seat;
+    private SeatStatus status;
+    private double price; // Price is dynamic per show
+    
+    public String getShowSeatId() { return showSeatId; }
+    public SeatStatus getStatus() { return status; }
+    public double getPrice() { return price; }
+    public void setStatus(SeatStatus status) { this.status = status; }
+}
+
+class Ticket {
+    private String ticketId;
+    private Booking booking;
+    private LocalDateTime issueTime;
+    
+    public Ticket(String ticketId, Booking booking) {
+        this.ticketId = ticketId;
+        this.booking = booking;
+        this.issueTime = LocalDateTime.now();
+    }
+}
+
+class Booking {
+    private String bookingId;
+    private User user;
+    private Show show;
+    private List<ShowSeat> seats;
+    private double totalPrice;
+    private BookingStatus bookingStatus;
+    private Ticket ticket; // Fulfills Requirement 3.1
+    
+    public Booking(User user, Show show, List<ShowSeat> seats, double totalPrice) {
+        this.bookingId = UUID.randomUUID().toString();
+        this.user = user;
+        this.show = show;
+        this.seats = seats;
+        this.totalPrice = totalPrice;
+        this.bookingStatus = BookingStatus.IN_PROGRESS;
+    }
+    
+    public void setStatus(BookingStatus status) { this.bookingStatus = status; }
+    public void setTicket(Ticket ticket) { this.ticket = ticket; }
+}
+
+// ==========================================
+// 3. STRATEGIES (Design Patterns)
+// ==========================================
+interface PaymentStrategy {
+    boolean processPayment(double price);
+}
+
+class CreditCardPaymentStrategy implements PaymentStrategy {
+    @Override
+    public boolean processPayment(double price) {
+        System.out.println("Processing credit card payment of $" + price);
+        return true; // Mock success
+    }
+}
+
+interface LockStrategy {
+    boolean lock(List<ShowSeat> seats);
+    void unlock(List<ShowSeat> seats);
+}
+
+class InMemoryLockProvider implements LockStrategy {
+    private final ConcurrentHashMap<String, ShowSeat> seatLocks = new ConcurrentHashMap<>();
+    
+    @Override
+    public boolean lock(List<ShowSeat> seats) {
+        List<ShowSeat> successfullyLocked = new ArrayList<>();
+        
+        for (ShowSeat showSeat : seats) {
+            // Atomic check-and-set prevents Thread Race Conditions
+            if (seatLocks.putIfAbsent(showSeat.getShowSeatId(), showSeat) == null) {
+                successfullyLocked.add(showSeat);
+            } else {
+                // DEADLOCK PREVENTION: Rollback previously acquired locks
+                unlock(successfullyLocked);
+                return false; 
+            }
+        }
+        return true;
+    }
+    
+    @Override
+    public void unlock(List<ShowSeat> seats) {
+        for (ShowSeat showSeat : seats) {
+            seatLocks.remove(showSeat.getShowSeatId());
+        }
+    }
+}
+
+// ==========================================
+// 4. CORE ENGINE / ORCHESTRATOR
+// ==========================================
+class BookMyShow {
+    private Map<City, List<Theater>> cityTheaterMap = new HashMap<>();
+    private Map<Theater, List<Show>> theaterShowMap = new HashMap<>(); // Replaces DB queries
+    
+    private LockStrategy lockStrategy;
+    private PaymentStrategy paymentStrategy;
+    
+    public BookMyShow(LockStrategy lockStrategy, PaymentStrategy paymentStrategy) {
+        this.lockStrategy = lockStrategy;
+        this.paymentStrategy = paymentStrategy;
+    }
+    
+    // REQUIREMENT: Search shows by Movie and City
+    public Map<Theater, List<Show>> searchShows(Movie movie, City city) {
+        Map<Theater, List<Show>> result = new HashMap<>();
+        List<Theater> theatersInCity = cityTheaterMap.getOrDefault(city, new ArrayList<>());
+        
+        for (Theater theater : theatersInCity) {
+            List<Show> allShows = theaterShowMap.getOrDefault(theater, new ArrayList<>());
+            List<Show> matchedShows = new ArrayList<>();
+            
+            // Apply Movie Filter
+            for (Show show : allShows) {
+                if (show.getMovie().getId() == movie.getId()) {
+                    matchedShows.add(show);
+                }
+            }
+            
+            if (!matchedShows.isEmpty()) {
+                result.put(theater, matchedShows);
+            }
+        }
+        return result;
+    }
+    
+    // REQUIREMENT: Book tickets with Concurrency handling
+    public Booking bookTickets(User user, Show show, List<ShowSeat> selectedSeats) {
+        // 1. Acquire Mutex (Fails fast if another thread holds the lock)
+        if (!lockStrategy.lock(selectedSeats)) {
+            throw new RuntimeException("Seats are currently being booked by someone else.");
+        }
+        
+        try {
+            // 2. Business Validation: Double-check that seats are actually vacant
+            for (ShowSeat seat : selectedSeats) {
+                if (seat.getStatus() != SeatStatus.VACANT) {
+                    throw new RuntimeException("Seat is already booked.");
+                }
+            }
+            
+            // 3. Calculate price and mark Business State as LOCKED (Grey out on UI)
+            double cost = 0;
+            for (ShowSeat seat : selectedSeats) {
+                cost += seat.getPrice();
+                seat.setStatus(SeatStatus.LOCKED);
+            }
+            
+            Booking booking = new Booking(user, show, selectedSeats, cost);
+            
+            // 4. Process Payment
+            if (paymentStrategy.processPayment(cost)) {
+                booking.setStatus(BookingStatus.CONFIRMED);
+                for (ShowSeat seat : selectedSeats) {
+                    seat.setStatus(SeatStatus.OCCUPIED); // Finalize business state
+                }
+                // Generate Ticket Receipt
+                Ticket ticket = new Ticket(UUID.randomUUID().toString(), booking);
+                booking.setTicket(ticket);
+                
+            } else {
+                booking.setStatus(BookingStatus.FAILED);
+                // BUSINESS STATE ROLLBACK: Free up seats for others
+                for (ShowSeat seat : selectedSeats) {
+                    seat.setStatus(SeatStatus.VACANT); 
+                }
+            }
+            
+            return booking;
+            
+        } finally {
+            // 5. Always release the Mutex Lock
+            lockStrategy.unlock(selectedSeats);
+        }
+    }
+}
