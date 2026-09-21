@@ -1,0 +1,208 @@
+import java.util.*;
+import java.lang.*;
+import java.io.*;
+
+class Codechef
+{
+	public static void main (String[] args) throws java.lang.Exception
+	{
+		// your code goes here
+
+	}
+}
+
+
+
+//SplitWise
+
+Requirments 
+
+
+1. User profile 
+2. Join a group, create a group, add member(user)
+3. Add/ split expense with text details with (%, person-wise,amount automatic split)
+4. Settle payment 
+5. User should get per Group level breakup of amount he ows or he will get.
+6. Overall user amount needs to pay to perPerson across group.
+
+
+
+- Entities
+- User
+- Group
+- Expense 
+- Payment
+
+// balance sheet, tansaction history
+
+
+
+User {
+     - String id 
+     - name
+}
+
+Group {
+    - id
+    - name 
+    - List<User> groupMembers. ///set
+    
+}
+
+Expense {
+    id
+    User creditor;
+    Group group;
+    String description;
+    int totalAmount;
+    //Map<int, int> split;  // List<Splits> split; // Map<User, Double> 
+    List<Splits> split;
+}
+
+
+Split {
+    User user;
+    double amount;
+}
+
+
+Payment {
+    - id
+   // - Expense expense;
+    - User recieve;
+    - User payee;
+    - int amountPaid;
+    - Paytment state
+    - long paymentTime
+}
+
+// BalanceSheet {
+//     User 
+//     Map<User, double>>
+// }
+
+interface SplitStrategy {
+    List<Splits> getPerUserAmount(int amount, Group group);
+}
+
+
+SplitEqually extends SplitStrategy {
+      int getPerUserAmount (int amount, Group group){
+          return amount/group.getMembers().size();
+      }
+}
+
+
+class SplitWise {
+    Map<Group, List<Expense>> groupWiseExpenseMap;   // controller
+    Map<Group, List<Payment>> groupPayments;   // cotroller
+
+    
+    //make group 
+    Group makeGroup(List<Users> members, int name){
+        Group currGroup = new group();
+        return currGroup;
+    }
+    
+    //
+    Expense addExpense(Group group, User creditor, int amount, String description, SplitStrategy SplitStrategy){
+        
+        Map<int,int> expenseSplits;
+        int perUserAmount = SplitStrategy.splitequally(amount);
+        for(User currUser : group.getMembers()){
+            expenseSplits.add(currUser.getId(), perUseramount);
+        }
+        return new Expense(id, creditor, group, description, expenseSplits);
+    }
+    
+    
+    //Settle
+    
+    Payment pay(Expense expense, User user, int amount){
+        if(amount < 0 || expense.getSplit().get(user.getId()) > amount){
+            throw Exception();
+        }
+        
+        Paytment currPayemnt = new Payment(id, expense, user, amount, PENDING);
+        if(PaymentStrategy.pay(User, amount)){
+            currPayemnt.setStatus(paid);
+        }else{
+            currPayemnt.setStatus(FAILED);
+        }
+        retunrn payment;
+    }
+    
+    //balanceSheetGroupOfUser
+
+    
+    Map<int, int> balanceSheetGroup(User currUser, Group group){
+        List<Expense> allExpense =  groupWiseExpenseMap.get(group);
+        Map<int,int> balance = new HashMap();
+        
+        for(Expense expense : allExpense) {
+            
+            if(expense.getCreditor() == currUser){
+                     
+                      expense.getSpit().forEach(id, amount) ->{
+                      if(id == currUser.getId()) continue;
+                      balance.get(id) += amount;
+                }
+            } else {
+                     expense.getSpit().forEach(id, amount) ->{
+                        if(id != currUser.getId()) continue;
+                        balance.get(id) += -1 * amount;
+                     }
+            }
+        }
+            
+            for(Payemnts currPayment : allPayments){
+                if(currPayment.getCreditor() == User){
+                    balance.get(expense.getCreditor()) -= amount;
+                }else{
+                     balance.get(expense.getCreditor()) += amount;
+                }
+            }
+    
+    
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
