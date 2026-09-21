@@ -1,0 +1,225 @@
+import java.util.*;
+import java.lang.*;
+import java.io.*;
+
+//CarRental
+//1. User view - city wise stores list.
+//2. Store should have cars with fees.
+//3. User can book a car with a fixed duration and pay.
+//4. Inventory cahnge on return.
+//5. Unavilable for the booked duration
+
+// Non - functional
+// Multiple booking of same vechicle with overlapping duration
+// Consistency system
+// Scalable
+
+//Entites
+
+// - Store
+// - Vechichle
+// - Booking
+// - User
+
+class Rental {
+
+    public class User {
+       int userId;
+       String userName;    
+    }
+
+    class Store {
+      int storeId;
+      int cityId;
+      StoreStatus currStoreStatus;
+      List<Vechichle> allVechichles;
+    }
+    
+    
+    class Vechichle {
+        int vechicleId;
+        VechichleType vehichleType;
+        int hourlyRate;
+    }
+    
+    class Booking {
+        User user;
+        int bookingId;
+        Vechichle vechicle;
+        Store store;
+        int startTime;
+        int duration;
+        BookingStatus bookingStatus;
+    }
+    
+    class Payemnt{
+        PayemntStatus paymentStatus;
+        int paymentId;
+        int cost;
+        Booking booking;
+    }
+
+   public class enum VechichleType {
+       CAR, BIKE
+   }
+   
+   public class StoreStatus {
+       OPEN, CLOSED
+   }
+   
+   public class BookingStatus {
+       CANCELLED, SCHEDULED, PICKED, CLOSED
+   }
+   
+   public class PaymentStatus {
+       CANCELLED, SUCCESS, FAILURE
+   }
+
+   
+   
+   class StoreContorller {
+       List<Store> allstores;
+       Map<Store, Map<Vechichle, List<Booking>> activeBookingMap;
+       
+       //addBooking()
+       //cancelBooking
+       //addStore()
+       //checkAvialbility
+       
+       boolean checkAvialbility(Store store, Vechichle Vechichle, Slot slot){
+             Map<Vechichle, List<Booking>> bookedSlots = activeBookingMap.get(store);
+              bookedSlots.forEach(vechicle, activeBooking) -> {
+               sort(activeBooking.begin(), activeBooking.end());
+               int startTime = 0;
+               for(int i=0; i<activeBooking.size(); i++){
+                   int sartTime = activeBooking.get(i).getStartTime();
+                   int endTime = activeBooking.get(i).getEndTime();
+                   if(currTime < startTime){
+                      return false;
+                   }
+                  
+               }
+           }
+           return true;
+             
+       }
+       
+       Map<Vechichle, List<Slot>> getAvialbleSlot(Store store){
+           Map<Vechichle, List<Booking>> bookedSlots = activeBookingMap.get(store);
+           
+           bookedSlots.forEach(vechicle, activeBooking) -> {
+               sort(activeBooking.begin(), activeBooking.end());
+               int startTime = 0;
+               for(int i=0; i<activeBooking.size(); i++){
+                   int sartTime = activeBooking.get(i).getStartTime();
+                   int endTime = activeBooking.get(i).getEndTime();
+                   if(currTime < startTime){
+                       availableSlots.add(new Slot(current, startTime));
+                   }
+                   currTime = endTime;
+               }
+           }
+           
+           if(currTime != 24){
+               availableSlots.add(new Slot(current, 24));
+               }
+           }
+           return availableSlots;
+       }
+   }
+   
+   interface LockStrategy {
+      Object lock(Vechichle vechicle);
+      void unlock(Vehichle vehichle);
+   }
+   
+   class InMemoryLockStrategy implements LockStrategy {
+        private final Map<String, Object> vehicleLocks = ConcurrentHashMap<>();
+        
+        public Object lock(Vehichle vehichle){
+              return vechicleLocks.computeIfAbsent(vechicle.getVehichleId(), k-> new Object());
+        }
+        
+        public void unlock(Vechichle vehicle){
+            vechicleLocks.remove(vechicle.getVehichleId());
+        }
+   }
+
+
+   
+   class RentalSystem {
+       
+       Map<String, List<Stores> cityStoreMap;
+       PayemntStrategy paymentStrategy ; 
+       LockStrategy lockStrategy;
+      
+       RentalSystem (PaymentStrategy upipaymentStrategy, LockStrategy inMemoryLockStrategy){
+           this.paymentStrategy = upipaymentStrategy;
+           this.LockStrategy = InMemoryLockStrategy;
+       }
+       
+       //constructor
+       
+       // User should search Stores - citywise
+       List<Stores> getCityWiseStores(string cityName){
+           List<Stores> allOpenStores  = new ArrayList();
+           for(Store currStore : cityStoreMap.get(cityName)){
+               if(currStore.getStatus() == StoreStatus.OPEN){
+                   allOpenStores.add(currentStore);
+               }
+           }
+           return allOpenStores;
+       }
+       
+       
+       Map<Vechichle, List<Slots>> getAllVechichleAvailable (Store store){
+           return StoreContorller.getAllVechichleAvailable(store);
+       } 
+       
+       
+       
+       Booking book(Store store, Vechichle vechicle, int startTime, int dustationInMin){
+           // coarse grain -> fineLock (storeId, vechicleId)
+           try {
+               synchonized (lockStrategy.getLock(vehichle)) { 
+                   int fees = vechicle.getHourlyRate() * ((durationInMins + 59)/60);
+                   Booking newBooking = new Booking("UUID", vechicle, fees, startTime, durationInMins, BookingStatus.PENDING);
+                   if(StoreContorller.chckAvailability(slot)) {StoreContorller.addBooking(store, vehichle, slot)};
+                   if(paymentStrategy.pay(fees)){
+                       newBooking.setStaus(BookingStatus.SUCCESS);
+                   }else{
+                       newBooking.setStaus(BookingStatus.PAYMENT_FAILURE);
+                   }
+                   
+                   return booking;
+               }
+       } catch {
+           lockStrategy.releaseLock(vehichle);
+       }
+       
+       
+       
+       boolean getLock(Vehichle vechichle){
+           return seatLocks.computeIfAbsent(vehicle.getVechicleId(), k-> newObject());
+       }
+       
+       boolean releaseLock(Vehichle vehichle){
+           return seatLocks.remove(vehicle.getVechicleId());
+       }
+       
+       
+       
+       
+       
+   }
+}
+
+
+class Codechef
+{
+	public static void main (String[] args) throws java.lang.Exception
+	{
+		// your code goes here
+
+	}
+}
