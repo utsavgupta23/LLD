@@ -1,0 +1,165 @@
+import java.util.*;
+import java.lang.*;
+import java.io.*;
+
+
+//   Requirments - 
+//   Vending machine - Multiple items with different prices and quantities
+// - Select the item and qnty
+// - Pay the price (card, cash, upi)
+// - Get the balance
+// - Item dispensed
+
+Non-functional 
+// - Consisteny in payment and inventory managment
+// - System state must be consistent
+// state of machine is changing not entity hence chain of responsibility
+
+Entites
+- Item. // DUMMY
+- Paymemt
+- Inventory
+
+class Item {
+    String itemId;  
+    String itemName;
+    double mrp;
+    // row col
+}
+
+class Paymemt {
+    String paymentId;
+    double paymentAmount;
+    PaymentStatus paymentStatus;
+}
+
+// purchase enetity if required
+class Inventory {
+   Item item; 
+   int quantity;
+}
+
+class enum PaymentStatus {
+    SUCCESS, FAILED
+}
+
+class InventoryController {
+     Map<Items, Inventory> allAvailableInvenotry;
+     
+     
+     void decrementInvenotry(Item item, int qty){
+         int currInvenotry = allAvailableInvenotry.get(item);
+         int newInvenotry -= qty;
+         allAvailableInvenotry.get(item).put(newInvenotry);
+     }
+     
+     void refillInvenotry(Item item, int qty){
+         int currInvenotry = allAvailableInvenotry.get(item);
+         int newInvenotry += qty;
+         allAvailableInvenotry.get(item).put(newInvenotry);
+     }
+}
+
+
+interface PaymentStrategy {
+    Payment pay(int amount);
+} 
+
+
+CashPaymentStrategy implements PaymentStrategy {
+    Payment pay(int amount){
+        // "paying via cash"
+        return new Payment("UUID", amount, PAYMENT_SUCCESS);
+    }
+}
+
+
+interface MachineState {
+    
+    getItem();
+    pay();
+    dispense();
+}
+
+
+clss IdleState extends MachineState {
+       
+       int getItem (int number, int qty){
+           if(InventoryController.currInvenotry(itemMap.get(number)) < qty) {
+           // error
+           }
+           this.machineState = new PaymentStae();
+           return item.getMrp() * qty;
+       }
+   
+    pay();
+    dispense();
+}
+
+
+class VendingMachine {
+   Map<int, Item> itemMap;
+   MachineState machineState = new IdleState();
+   
+   
+   // PRODUCT, COUNT SELECT  -> price, error
+   // PAYMENT -> < ERROR    > RETURN  = No action 
+   // Dispense 
+   
+   
+   // machine state problem not entiyState
+   //blocking operation for machine 
+   int getItem (int number, int qty){
+       machineState.getItem(number, qty, this);
+   }
+   
+  
+   
+   
+    Payment payForItem( int number, int qnty, int cash, int totalMrp){
+        
+        int amount = item.getMrp() * qnty;
+        
+        if(cash < amount){
+            //error
+        }
+        
+        //record 
+        
+        Payment payment = new Payment();
+        
+        //set value of payment here
+        if(amount > cash){
+            if(PaymentStrategy.pay(payment)){
+                // paymentStatus = success
+            }else{
+                // paymentStatus = failed
+            }
+        }
+     
+        return payment;
+    }
+    
+     Inventory dispense(Item item, int qty){
+           
+         return nventoryController.decrmeent(item, qty);
+     }
+    
+}
+
+
+
+
+
+
+
+
+
+
+class Codechef
+{
+	public static void main (String[] args) throws java.lang.Exception
+	{
+	    
+	}
+}
