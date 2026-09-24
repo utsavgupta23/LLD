@@ -1,0 +1,240 @@
+import java.util.*;
+import java.lang.*;
+import java.io.*;
+
+
+//Requirment - itenaryManagment
+
+
+1. ArrivalTime, Departuretime,no of adults, LocationFrom to  -> user ko stay + flights + k activiteis + places in order (trip creation - recommandation) -> top k
+//day 1 and endday k flight + all day k hotels. + all day k restaurant acc to filter
+2. timeline wise sorted itenary
+3. Booking of iternary
+4. like mmt day wise Itenrary
+
+
+Entities
+- Trip  
+- Itenrary
+- Booking
+- Payment
+- Activity
+
+
+
+class Trip {
+   int arrivalDate;  ///long , epoch, string
+   int noOfDays;
+   int noOfPerson;
+   string LocationFrom;
+   string locationTo;
+   //iternary correct way Trip owns Itinerary
+}
+
+
+Activity {
+    id
+    name
+    startTime;
+    endTime;
+    int cost;
+    ActivityType activityType;
+}
+
+
+FlightActivity extends Activity {
+    flightNo;
+    LocationFrom
+    LocatioTo;
+}
+
+Hotel extends Activity {
+    location
+}
+
+
+Restaurant extends Activity {
+    location
+    menu
+}
+
+
+ItenraryActivity {
+    id
+    List<Activity> allActivities;
+    Trip trip; // remove it
+    int tcost;
+}
+
+class Itinerary {
+    List<DayItinerary> days;
+}
+
+class DayItinerary {
+    int dayNumber;
+    LocalDate date;
+    List<Activity> activities;
+}
+
+Booking {
+    id
+    Itenrary
+    Payment 
+    Status
+}
+
+Payment {
+    int amount;
+    Status
+}
+
+costFilter extends Filter {
+    
+    getComp(Activity activity){
+        if(activity.cost > b.cost){
+            
+        }
+    }
+}
+
+ActivityController {
+    
+
+    Map<ActivityType, Map<Location, list<>> activityMap;
+    
+    getKActivites (curr, trip, Strategy filter){
+        //pq top k
+        // trip start k flight
+        priority_queue< filter.getCom() >
+        
+        for(){
+            
+        }
+        
+        // trip k  floght
+        
+    }
+    
+
+    
+}
+
+
+class mmt {
+    
+    List<ActivityType> allActivities;
+    
+    
+    Map<int, Map<ActivityType , List<Activity>>> getActivities(Trip trip, Fiter filter){
+        
+         Map<ActivityType, List<Activity>> res ;
+         //day 1 and endday k flight + all day k hotels. + all day k restaurant acc to filter
+         for(ActivityType curr : allActivities){
+             List<> = activityController(curr, trip, filter);
+             res.add()
+         }
+        return res;
+    }
+    
+    
+    Itenary getItenary(List<Activity> activites, Trip trip){
+        
+        int totalCost = 
+    }
+    
+    Payment pay(Itenary itenary){
+        
+        
+        //
+        
+        
+        return payment
+    }
+    
+    Booking (Itenray itenary, Payemnt payment){
+        
+        
+        
+        
+    }
+    
+    
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class Trip {
+    long tripId;
+    LocalDate startDate;
+    LocalDate endDate;
+    int numberOfAdults;
+    Location from;
+    Location destination;
+
+    Itinerary itinerary;
+}
+
+class Itinerary {
+    long itineraryId;
+    List<DayItinerary> days;
+    double totalCost;
+}
+
+class DayItinerary {
+    int dayNumber;
+    LocalDate date;
+    List<ItineraryActivity> activities;
+}
+
+abstract class ItineraryActivity {
+    long id;
+    String name;
+    LocalDateTime startTime;
+    LocalDateTime endTime;
+    double cost;
+}
+
+class Booking {
+    long bookingId;
+    long itineraryId; // trip rakhenge bcz it contains both
+    Payment payment;
+    BookingStatus status;
+}
+
+class Payment {
+    long paymentId;
+    double amount;
+    PaymentStatus status;
+}
+
+
+
+
+
+
+
+
+
+
+class Codechef
+{
+	public static void main (String[] args) throws java.lang.Exception
+	{
+		// your code goes here
+
+	}
+}
