@@ -1,0 +1,327 @@
+import java.io.*;
+import java.util.*;
+
+import java.util.concurrent.ConcurrentHashMap;
+// or import all concurrency utilities:
+import java.util.concurrent.*;
+
+
+
+// Requirements
+
+// 1.00 The system should allow users to view the list of movies playing in different theaters.
+// 1.01 Users should be able to select a movie, theater, and show timing to book tickets.
+// 1.0 User selects theater with multiple screens with different seat arrangment.
+// 1.01 Every screen has multiple shows with different movie
+// 1.1. User select theater and all shows with timings must be shown.
+// 2. User selects the particular show then selects seat.(unocuppied for others)
+// 3. Proceeds to payment (via UPI, Cash, Card)
+// 3.1 Ticket generation
+// 4. Prevent double booking
+// 5. Users can select seats, which become temporarily unavailable to other users.
+
+// Entities
+
+
+// - theater
+// - show
+// - screens
+// - movie
+// - seats
+// - booking/ ticket
+// - payment
+
+class Theater {
+    String id;
+    String theaterName;
+    String cityName;
+    List<Screen> allScreens;
+}
+
+class Screen {
+    String screenId;
+    List<Seat> seatMatrix;
+    
+    List<Seat> getMatrix (){
+        return this.seatMatrix;
+    }
+    // List<Shows> -> screen as dummy object + list of shows across years will make this entity heavy
+}
+
+class Show {
+    String id;
+    Movie movie;
+    long startTime;
+    long endTime;
+    Screen screen;  
+    // list of seats -> easy to get avialbleSeats but need to modify on every booking vs traverse on all bookings and minus it from allsests
+    Movie getMovie(){
+        return this.movie;
+    }
+    
+    Screen getScreen(){
+        return this.screen;
+    }
+}
+
+class Seat {
+    double price;
+    String seatNo;
+}
+
+class Movie {
+    String movieId;
+    String movieName;
+}
+
+class Booking {
+    String bookingId;
+    BookingStatus bookingStatus;
+    Show show;
+    double fees;
+    List<ShowSeat> seat;
+    Payment payment;
+    
+    Booking (Show show, List<ShowSeat> allSeats) {
+        this.bookingId = UUID.randomUUID().toString();
+        this.seat = allSeats;
+        this.bookingStatus = BookingStatus.PENDING;
+        this.payment = null;
+    }
+    
+    List<ShowSeat> getBookedSeat(){
+        return this.seat;
+    }
+    
+    void setStatus(BookingStatus bookingStatus){
+        this.bookingStatus = bookingStatus;
+    }
+    
+    void setPayment(Payment payment){
+        this.payment = payment;
+    }
+    
+    Show getShow(){
+        return this.show;
+    }
+}
+
+
+class Payment {
+    String paymentId;
+    PaymentStatus paymentStatus;
+    double amountPaid;
+    
+    PaymentStatus getStatus(){
+        return paymentStatus;
+    }
+}
+
+enum PaymentStatus {
+    SUCCESS, FAILED
+}
+
+enum BookingStatus {
+    PENDING, COMPLETED, CANCELLED , FAILED
+}
+
+
+class ShowSeat {
+    String showId;
+    String seatNo;
+    double price;
+
+    ShowSeatStatus status;
+    String bookingId;
+    long lockedUntil;
+
+    boolean isAvailable(long currentTime) {
+        if (status == ShowSeatStatus.AVAILABLE) {
+            return true;
+        }
+
+        if (status == ShowSeatStatus.LOCKED &&
+            currentTime >= lockedUntil) {
+            return true;
+        }
+
+        return false;
+    }
+}
+
+enum ShowSeatStatus {
+    AVAILABLE,
+    LOCKED,
+    BOOKED
+}
+
+interface PaymentStrategy {
+    Payment processPayment(double amount);
+}
+
+
+class UpiPaymentStrategy implements PaymentStrategy {
+   
+   public Payment processPayment(double amount){
+       //clinet call to rajoar pay
+       return new Payment();
+   }    
+    
+}
+
+class BookingController {
+       Map<Show, List<Booking>> acitveBookings;
+       
+       List<Booking> getActiveBooking(Show show){
+          return acitveBookings.get(show);
+       }  
+}
+
+class ShowController {
+     BookingController bookingController = new BookingController();
+    
+    
+    boolean checkAvailability(List<ShowSeat> seats, int currentTime){
+      
+         for(ShowSeat seat : seats){
+            if(!seat.isAvailable(currentTime)){
+                return false;
+            }
+         }
+
+         return true;
+    }
+}
+
+
+interface LockStrategy {
+    boolean lock(List<ShowSeat> seats);
+    void unlock (List<ShowSeat> seats);
+}
+
+class InMemoryLockProvider implements LockStrategy {
+    private final ConcurrentHashMap<String, ShowSeat> seatLocks = new ConcurrentHashMap<>();
+    
+    @Override
+    public boolean lock(List<ShowSeat> seats) {
+        List<ShowSeat> successfullyLocked = new ArrayList<>();
+        
+        for (ShowSeat showSeat : seats) {
+            // Atomic check-and-set prevents Thread Race Conditions
+            if (seatLocks.putIfAbsent(showSeat.showId + showSeat.showId, showSeat) == null) {
+                successfullyLocked.add(showSeat);
+            } else {
+                // DEADLOCK PREVENTION: Rollback previously acquired locks
+                unlock(successfullyLocked);
+                return false; 
+            }
+        }
+        return true;
+    }
+    
+    @Override
+    public void unlock(List<ShowSeat> seats) {
+        for (ShowSeat showSeat : seats) {
+            seatLocks.remove(showSeat.showId + showSeat.showId);
+        }
+    }
+}
+
+
+class MovieBookingSystem {
+    Map<String, List<Theater>> cityTheaterMap;
+    Map<Theater, List<Show>> theaterShowMap;
+    BookingController bookingController;
+    LockStrategy lockStrategy = new InMemoryLockProvider();
+    ShowController showController;
+    PaymentStrategy paymentStrategy = new UpiPaymentStrategy();
+    // User selects city and movie -> getListofTheaterwithtimings
+    
+    Map<Theater, List<Show>> getAllShows(String cityName, Movie movie){
+        Map<Theater, List<Show>> allLiveShows = new HashMap();
+        List<Theater> theaterList = cityTheaterMap.get(cityName);
+        for(Theater currTheater : theaterList){
+                List<Show> allShows = theaterShowMap.get(currTheater);
+                for(Show currShow : allShows){
+                      if(currShow.getMovie() == movie){
+                            allLiveShows.getOrDefault(currTheater, new ArrayList()).add(currShow);
+                      }
+                }
+        }
+        
+        return allLiveShows;
+    }
+    
+    
+    //select show  -> list of avilable seat
+    
+    List<Seat> getAvailableSeats(Show show){
+          List<Seat> seatMatrix = show.getScreen().getMatrix();
+          List<Booking> bookings = bookingController.getActiveBooking(show);
+          List<Seat> availableSeats = seatMatrix;
+          
+          for(Booking booking : bookings){
+               availableSeats.remove(booking.getBookedSeat());
+          }
+          return availableSeats;
+    }
+    
+    
+    
+    //selects seat and checkout -> Booking
+    
+    Booking bookSeat(List<ShowSeat> seats, Show show){
+        double fees = 0;
+        Booking currBooking = new Booking(show, seats);
+        for(ShowSeat seat : seats){
+            fees = fees + seat.price;
+        }
+        currBooking.fees = fees;
+        return currBooking;
+    }
+    
+    
+    // pay -> ticket
+    Booking confirmedBooking (Booking booking){
+        
+        if(!lockStrategy.lock(booking.getBookedSeat())){
+            booking.setStatus(BookingStatus.FAILED);
+            // runtimeexception
+        }
+        
+        if(!showController.checkAvailability(booking.getBookedSeat(), 12000)){
+            // already booked excepion
+        }
+        
+        // mark showSeat as locked
+        
+        Payment payment = paymentStrategy.processPayment(booking.fees);
+        booking.setPayment(payment);
+        
+        if(payment.getStatus() == PaymentStatus.SUCCESS){
+            booking.setStatus(BookingStatus.COMPLETED);
+            //show seat status as booked
+        }else{
+            booking.setStatus(BookingStatus.FAILED);
+            //show seat status as avialble
+        }
+        
+        return booking;
+    } 
+}
+
+
+
+
+
+
+
+
+
+
+public class Solution {
+
+    public static void main(String[] args) {
+        /* Enter your code here. Read input from STDIN. Print output to STDOUT. Your class should be named Solution. */
+    }
+}
