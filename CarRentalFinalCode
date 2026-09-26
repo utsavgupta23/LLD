@@ -1,0 +1,280 @@
+import java.io.*;
+import java.util.*;
+
+import java.util.concurrent.ConcurrentHashMap;
+// or import all concurrency utilities:
+import java.util.concurrent.*;
+//CarRental
+//1. User view - city wise stores list.
+//2. Store should have cars with fees.
+//3. User can book a car with a fixed duration and pay.
+//4. Inventory change on return.
+//5. Vechichle Unavilable for the booked duration
+
+// Non-functional
+//- Consistency across multiple bookings
+
+//Entities
+
+// - Store
+// - Vechichle
+// - Booking
+// - Payment
+
+
+ 
+public class Store {
+    String id;
+    String locationCity;
+    boolean isOpen;
+    List<Vehichle> allVehichles; // small list + dumb object not changing per booking + sotre has vehicles
+    
+    
+    List<Vehichle> getAllVehichles(){
+        return this.allVehichles;
+    }
+}
+
+class Vehichle {
+    String id;
+    double hourlyRate;
+    String vechichleName;
+    VehichleType vehichleType;
+    
+    double rate(){
+        return this.hourlyRate;
+    }
+    
+    String getId(){
+        return this.id;
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Vehichle vehichle = (Vehichle) o;
+        return Objects.equals(id, vehichle.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+}
+
+enum VehichleType {
+    SUV, MINI
+}
+
+
+class Booking {
+    String userId;
+    String bookingId;
+    Payment payment;
+    Vehichle vehichle;
+    int startTime;
+    int totalDurationInMins;  
+    BookingStatus bookingStatus;
+    
+    
+    Booking (Vehichle vehichle, int startTime, int totalDurationInMins){
+        this.bookingId = UUID.randomUUID().toString();
+        this.payment = null;
+        this.vehichle = vehichle;
+        this.startTime = startTime;
+        this.totalDurationInMins = totalDurationInMins;
+        this.bookingStatus = BookingStatus.PENDING;
+    }
+        
+        
+        double fees () {
+              return (vehichle.rate() / 60.0) * this.totalDurationInMins;
+        }
+
+    
+
+    int getStartTime(){
+        return this.startTime;
+    }
+    
+    int getDuration(){
+        return this.totalDurationInMins;
+    }
+    
+        
+    void setPayment(Payment payment){
+        this.payment = payment;
+    }
+    
+    void setStatus(BookingStatus bookingStatus){
+        this.bookingStatus = bookingStatus;
+    }
+    
+    Vehichle getVehichle(){
+        return this.vehichle;
+    }
+
+}
+
+class Payment {
+    String paymentId;
+    String userId;
+    double amountPaid;
+    PaymentStatus paymentStatus;
+    
+    
+    void setStatusProcessed(){
+        this.paymentStatus = PaymentStatus.SUCCESS;
+    }
+
+}
+
+
+enum BookingStatus {
+    PENDING, SUCCESS, PICKUP_SCHEDULED, DROP_DONE, COMPLETED, FAILED
+}
+
+enum PaymentStatus {
+    SUCCESS, PENDING, FAILED
+}
+
+public interface PaymentStrategy {
+    
+    Payment processPayment(double fees);
+}
+
+
+class UpiBookingStrategy implements PaymentStrategy {
+     
+     public Payment processPayment(double amountPaid){
+          Payment payment = new Payment();
+          System.out.println("Processing payment");
+          //clinetcall to razopay
+          payment.setStatusProcessed();
+          return payment;
+          
+     }
+}
+
+public class BookingController {
+    ConcurrentHashMap<Vehichle, List<Booking>> activeBookingMap = new ConcurrentHashMap<>();
+    
+
+    public List<Booking> getBooking(String vehicleId) {
+        return activeBookingMap.getOrDefault(vehicleId, Collections.emptyList());
+    }
+    
+    void addBooking(Booking booking){
+         activeBookingMap.get(booking.getVehichle()).add(booking);
+    }
+    
+    boolean checkAvialability(Vehichle vehichle, int startTime, int durationInMin ){
+         boolean availability  = true;
+         int newBookingEndTime = startTime + durationInMin;
+         List<Booking> activeCurrVhichleBooking = activeBookingMap.get(vehichle);
+               for(Booking currBooking : activeCurrVhichleBooking){
+                   int currBookingStartTime = currBooking.getStartTime();
+                   int currBookingEndTime = currBookingStartTime + currBooking.getDuration();
+
+                // Overlap condition: (StartA < EndB) AND (StartB < EndA)
+                     if (startTime < currBookingEndTime && currBookingStartTime < newBookingEndTime) {
+                       availability = false;
+                   }
+                   if(!availability) break;
+               }
+               
+               return availability;
+    }
+}
+
+public interface LockingStrategy {
+      Object lock(Vehichle vechicle);
+      void unlock(Vehichle vehichle);
+}
+
+public class RedisLock implements LockingStrategy {
+    
+      private final Map<String, Object> vehicleLocks = ConcurrentHashMap<>();
+        
+        public Object lock(Vehichle vehichle){
+              return vehicleLocks.computeIfAbsent(vehichle.getId(), k-> new Object());
+        }
+        
+        public void unlock(Vehichle vehicle){
+            vehicleLocks.remove(vehicle.getId());
+        }
+}
+
+
+class CarRental {
+    
+    Map<String, List<Store>> cityStoreMap; // citycotroller
+    BookingController bookingContorller = new BookingController();
+    PaymentStrategy paymentStrategy = new UpiBookingStrategy(); 
+    LockingStrategy lockstrategy  = new RedisLock();
+    
+    // 1. User selects city and get list of store
+    List<Store> getCityWiseStores(String cityName){
+        return cityStoreMap.get(cityName);
+    }
+    
+    // 2. User selects nearest store and give duration of rent -> we should return all vechichles with availability
+    // why not storign avilabily slots ? -> too much data to store unnecessay for every slot + booking data already avaialble
+    List<Vehichle> getVechichle(Store store, int startTime, int durationInMin){
+          List<Vehichle> allVehichles = store.getAllVehichles();
+          List<Vehichle> allAvailableVehichle = new ArrayList<>();
+          for( Vehichle currVehichle : allVehichles){
+               if(bookingContorller.checkAvialability(currVehichle, startTime, durationInMin)) {
+                   allAvailableVehichle.add(currVehichle);
+               }
+          }
+          
+          return allAvailableVehichle;
+    }
+    
+    //3. User chose 1 vechichle and choses duration -> we give the booking id -> checkout page
+    Booking bookVehichle (Vehichle vehichle, int startTime, int durationInMin ){
+        Booking booking = new Booking(vehichle, startTime, durationInMin);
+        return booking;
+    }
+    
+    //4. User pays now and complete the booking -> pickup scheduled
+    Booking payAndGetTheBooking (Booking booking){
+        try {
+        synchronized (lockstrategy.lock(booking.getVehichle())){ //since id is unique
+            double fees = booking.fees();
+            if(!bookingContorller.checkAvialability(booking.getVehichle(), booking.startTime, booking.getDuration())){
+                // throw error booking not possible
+            }
+            Payment payment = paymentStrategy.processPayment(fees);
+            booking.setPayment(payment);
+            if(payment.paymentStatus == PaymentStatus.SUCCESS){
+                booking.setStatus(BookingStatus.PICKUP_SCHEDULED);
+                bookingContorller.addBooking(booking);   
+            }else{
+                booking.setStatus(BookingStatus.FAILED);
+            }
+            return booking;
+        }
+        } catch(Exception exception) {
+            lockstrategy.unlock(booking.getVehichle());
+        }
+
+    }
+    
+    
+      // concurrency followups
+      // same vehicle getting booked. -> synchronized payAndGetTheBooking using vehichleId (unique key)
+      // what else ?
+     // lets it is deployed on distributed system -> use lockstrategy -> redis cache
+     // we can modify the Object to have ttl and all currenlty plain simple object
+}
+
+
+public class Solution {
+
+    public static void main(String[] args) {
+        /* Enter your code here. Read input from STDIN. Print output to STDOUT. Your class should be named Solution. */
+    }
+}
