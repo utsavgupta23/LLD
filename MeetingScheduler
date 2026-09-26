@@ -1,0 +1,180 @@
+/Meeting Scheduler
+
+// 1. Create a meeting -> time, memberList, name, description, suggested avialable room.
+// 2. User naughtficaion 
+// 3. Acept or reject the event -> rejection notification to creator , add in calendar on acceptance
+// 4. Notifcation for all accepted member 
+
+
+//Entities
+// - Meeting
+// - User
+// - Room
+// - Notification
+// - Calendar
+
+
+class MeetingParticipant {
+    String meetingId;
+    String userId;
+    ParticipantStatus status;
+}
+enum ParticipantStatus {
+    PENDING,
+    ACCEPTED,
+    REJECTED
+}
+
+
+
+class Meeting {
+    String meetingId;
+    User organizer;
+    String description;
+    long startTime;
+    long endTime;
+    MeetingStatus meetingStatus;
+    Map<User, ResponseStatus> invitedParticipants; // think of declined
+   // List<MeetingParticipant> participants;
+    Room bookedRoom;
+    
+    Meeting (){
+        // status -> scheduled
+    }
+
+}
+
+
+
+
+enum ResponseStatus {
+    DECLINED, ACCEPTED, NOT_YET_RESPONED
+}
+
+enum MeetingStatus {
+    CREATED, CANCELLED
+}
+
+class User {
+    String userId;
+    String name;
+    String email;
+}
+
+
+class Room {
+    String roomId;
+    int occupancy;
+    // attirubtes for sorting
+}
+
+
+class Notifcation {
+    User user;
+    Meeting meeting;
+    ResponseStatus responseStatus;
+    String message;
+    NotificationType type;
+}
+
+enum NotificationType {
+    MEETING_INVITATION,
+    MEETING_ACCEPTED,
+    MEETING_REJECTED,
+    MEETING_UPDATED,
+    MEETING_CANCELLED
+}
+
+class Calendar { // dervied
+    User user;
+    String day;
+    TreeSet<Meeting> allMeetingsOfDay;
+}
+
+
+
+
+class RoomController {
+    //wrong   Map<Room, List<Booking>> roomBookingMap;
+    Map<Room, List<Meeting>> roomBookingMap;
+    
+    List<Room> getRooms(int capacity, int startTime, int endTime){
+        List<Room> available = new ArrayList<>();
+        
+        roomBookingMap.forEach(room, bokinglist){
+            bool isAvailable = true;
+            if(room.occupany > capacity){
+                for(Booking currBooking : bokinglist){
+                  if(currBooking.startTime > startTime && currBooking.endTime<endTime){
+                      isAvailable = false;
+                  }       
+             }
+             if(isAvailable) available.add(room);
+            }  
+        }
+        sort(available.begin(), available.end());
+        return available;
+    };
+    
+}
+
+
+class MeetingController {
+    
+    
+    void notifyAll(Meeting meeting){
+         meeting.getinvitedParticipants().forEach((Key, Value)){
+            if(value != DECLINED){
+                System.out.println("Notification to user for meeting : {}", this.meetingId);
+            }
+        }
+    }
+    
+    void notifyOrganizer(){
+        
+    }
+        
+    
+}
+
+class MeetingScheduler {
+
+    Map<User, List<Calendar>> userCalendarMap;
+    
+    //1. Create meeting -> notification trigger
+    Meeting createMeeting(User creator, String description, Room room, int startTime, int endTime, List<User>participants ){
+        Meeting meeting = new Meeting();
+        RoomController.occupy(startTime, endTime, room);
+        meetingController.notifyAll(meeting);
+        return meeting;
+    }
+    
+    
+    //2. Accept or reejct -> perUser
+    Calendar acceptOrRejctMeeting(Notifcation notifcation){
+        Calendar res = null;
+        // if(notifcation.status == ACCEPTED) {
+        //     // add in that calenar
+        //     List<Calendar> userCalendar = userCalendarMap.get(notificaion.getUser());
+        //     for(Calendar calendar : userCalendar){
+        //         if(calendar.getDay() == notifcation.getMeeting().meetingDate()){
+        //               calendar.add(notifcation.getMeeting());
+        //               res = calendar;
+        //         }
+        //     }
+        // }
+        //dont complex simply change the response fo user idirectly in the meeting and get the list for calendar qurying meetings table
+        meetingController.processResponse(notifcation);
+        meetingController.notifyOrganizer(); 
+        // repositry call
+    }
+    
+    
+    
+    //3. Notifcation trigger on start to all accepted -> bulkUser
+    
+    void notifyAcceptedUser(Meeting meeting) {
+        meetingContoller.notifyAll(meeting);
+    }
+    
+}
