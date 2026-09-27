@@ -164,7 +164,92 @@ class mmt {
 
 
 
+interface RankingStrategy {
+    Comparator<ItineraryActivity> getComparator();
+}
 
+class CostRankingStrategy implements RankingStrategy {
+    @Override
+    public Comparator<ItineraryActivity> getComparator() {
+        // Ascending order: Lowest cost activity first
+        return Comparator.comparingDouble(ItineraryActivity::getCost);
+    }
+}
+
+class RatingRankingStrategy implements RankingStrategy {
+    @Override
+    public Comparator<ItineraryActivity> getComparator() {
+        // Descending order: Highest rating activity first
+        return Comparator.comparingDouble(ItineraryActivity::getRating).reversed();
+    }
+}
+
+// ======================= CONTROLLERS & SERVICE LAYER =======================
+
+class ActivityController {
+    // Inventory: ActivityType -> (Location -> List of available activities)
+    private final Map<ActivityType, Map<Location, List<ItineraryActivity>>> activityMap = new HashMap<>();
+
+    public void addActivityToInventory(Location location, ItineraryActivity activity) {
+        activityMap.computeIfAbsent(activity.getType(), k -> new HashMap<>())
+                   .computeIfAbsent(location, k -> new ArrayList<>())
+                   .add(activity);
+    }
+
+    /**
+     * Retrieves Top-K activities for a given type, location, and sorting strategy using a PriorityQueue.
+     */
+    public List<ItineraryActivity> getTopKActivities(ActivityType type, Location location, int k, RankingStrategy strategy) {
+        List<ItineraryActivity> candidates = activityMap.getOrDefault(type, Collections.emptyMap())
+                                                         .getOrDefault(location, Collections.emptyList());
+
+        if (candidates.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // PriorityQueue initialized with strategy's comparator
+        PriorityQueue<ItineraryActivity> pq = new PriorityQueue<>(strategy.getComparator());
+        pq.addAll(candidates);
+
+        List<ItineraryActivity> result = new ArrayList<>();
+        int count = 0;
+        while (!pq.isEmpty() && count < k) {
+            result.add(pq.poll());
+            count++;
+        }
+
+        return result;
+    }
+
+    /**
+     * Specialized retrieval for Flights between origin and destination.
+     */
+    public List<ItineraryActivity> getTopKFlights(Location origin, Location destination, int k, RankingStrategy strategy) {
+        List<ItineraryActivity> flights = activityMap.getOrDefault(ActivityType.FLIGHT, Collections.emptyMap())
+                                                     .getOrDefault(origin, Collections.emptyList());
+
+        List<ItineraryActivity> matchingFlights = new ArrayList<>();
+        for (ItineraryActivity act : flights) {
+            if (act instanceof FlightActivity) {
+                FlightActivity flight = (FlightActivity) act;
+                if (flight.getDestination().equals(destination)) {
+                    matchingFlights.add(flight);
+                }
+            }
+        }
+
+        PriorityQueue<ItineraryActivity> pq = new PriorityQueue<>(strategy.getComparator());
+        pq.addAll(matchingFlights);
+
+        List<ItineraryActivity> result = new ArrayList<>();
+        int count = 0;
+        while (!pq.isEmpty() && count < k) {
+            result.add(pq.poll());
+            count++;
+        }
+        return result;
+    }
+}
 
 
 
