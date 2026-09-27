@@ -1,4 +1,7 @@
-/Meeting Scheduler
+
+
+
+//Meeting Scheduler
 
 // 1. Create a meeting -> time, memberList, name, description, suggested avialable room.
 // 2. User naughtficaion 
@@ -34,8 +37,8 @@ class Meeting {
     long startTime;
     long endTime;
     MeetingStatus meetingStatus;
-    Map<User, ResponseStatus> invitedParticipants; // think of declined
-   // List<MeetingParticipant> participants;
+   // Map<User, ResponseStatus> invitedParticipants; // think of declined also avoid map use list of other class
+    List<MeetingParticipant> participants; 
     Room bookedRoom;
     
     Meeting (){
@@ -85,7 +88,7 @@ enum NotificationType {
     MEETING_CANCELLED
 }
 
-class Calendar { // dervied
+class Calendar { // dervied by meeting + meetingParticipant
     User user;
     String day;
     TreeSet<Meeting> allMeetingsOfDay;
@@ -178,3 +181,56 @@ class MeetingScheduler {
     }
     
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+public class Solution {
+
+    public static void main(String[] args) {
+        /* Enter your code here. Read input from STDIN. Print output to STDOUT. Your class should be named Solution. */
+    }
+}
+
