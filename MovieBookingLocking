@@ -42,7 +42,7 @@ class Show {
     Movie movie;
     long startTime; // epoch
     long endTime;
-    List<ShowSeat> allSeats;
+    List<ShowSeat> allSeats;  // not required lazy load when required
 }
 
 
