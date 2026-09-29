@@ -1,0 +1,230 @@
+List<Payment> simplify(
+        Map<User, Map<User, Integer>> balances,
+        List<User> members) {
+
+    Map<User, Integer> netBalance = new HashMap<>();
+
+    // 1. Calculate net balance of every user
+    for (User user : members) {
+        int net = 0;
+
+        for (User other : members) {
+            net += balances.get(user).get(other);
+        }
+
+        netBalance.put(user, net);
+    }
+
+    // 2. Separate creditors and debtors
+    List<User> creditors = new ArrayList<>();
+    List<User> debtors = new ArrayList<>();
+
+    for (User user : members) {
+        if (netBalance.get(user) > 0) {
+            creditors.add(user);
+        } else if (netBalance.get(user) < 0) {
+            debtors.add(user);
+        }
+    }
+
+    // 3. Match debtors with creditors
+    List<Payment> result = new ArrayList<>();
+
+    int i = 0;
+    int j = 0;
+
+    while (i < debtors.size() && j < creditors.size()) {
+
+        User debtor = debtors.get(i);
+        User creditor = creditors.get(j);
+
+        int debt = -netBalance.get(debtor);
+        int credit = netBalance.get(creditor);
+
+        int amount = Math.min(debt, credit);
+
+        result.add(new Payment(
+                debtor,
+                creditor,
+                amount
+        ));
+
+        // debtor has paid his complete debt
+        netBalance.put(
+                debtor,
+                netBalance.get(debtor) + amount
+        );
+
+        // creditor has received this amount
+        netBalance.put(
+                creditor,
+                netBalance.get(creditor) - amount
+        );
+
+        if (netBalance.get(debtor) == 0) {
+            i++;
+        }
+
+        if (netBalance.get(creditor) == 0) {
+            j++;
+        }
+    }
+
+    return result;
+}
+
+
+
+Non functions - High consistency
+
+
+//Entities
+
+- User
+- Group 
+- Expenses
+- Payment
+
+
+
+
+class User {
+    string userId;
+    string userName;
+}
+
+class Group {
+    string groupId;
+    string groupName;
+    List<User> allMembers;
+}
+
+class Expenses {
+    string expenseId;
+    string description;
+    Group group;
+    List<Splits> allSplits;
+    User payee;
+}
+
+
+class Splits {
+    User user;
+    double amount;
+}
+
+
+class Payment {
+    string paymentId;
+    User paidBy;
+    User paidTo;
+    double amount;
+    Group group;
+    PaymentStatus paymentStatus;
+}
+
+
+enum PaymentStatus {
+    SUCCESS, FAILURE
+}
+
+interface SplitStrategy {
+    List<Splits> getPerUserAmount(int amount, Group group);
+}
+
+
+SplitEqually extends SplitStrategy {
+      List<Splits> getPerUserAmount (int amount, Group group){
+          int perUserAmount =  amount/group.getMembers().size();
+          List<Splits> res = new ArrayList();
+          for(User user : group.getMembers()){
+              res.add(new Split(user, preUserAmount));
+          }
+          return res;
+      }
+}
+
+
+class PaymentService {
+    Map<Group, List<Payment>> paymentsGroupMap;
+    
+    
+    List<Payments> getAllPayments(Group group){
+        return paymentsGroupMap.get(group);
+    }
+}
+
+class ExpenseService {
+    
+    Map<Group, List<Expense>> expenseGroupMap;
+    
+    List<Expense> getAllExpense(Group group){
+        return expenseGroupMap.get(group);
+    }
+    
+}
+class GroupService {
+    
+    
+    Map<User, Map<User, int>> getBalancePerMember(Group group, User user){ // O(E + P + G)
+        Map<User, int> balancePerMember = new HashMap();
+        Map<User, Map<User, int>> result = new HashMap();
+        
+        for(User user : group.getAllMembers()){
+            balancePerMember.put(user, 0);
+        }
+        
+        for(User user : group.getAllMembers()){
+            result.put(user, balancePerMember);
+        }
+
+        
+        List<Expense> allGroupExpense = expenseService.getAllExpense(group);
+        
+        for(Expense currExpense : allGroupExpense){
+              User payee = currExpense.getPayee();
+              List<Splits> splits = currExpense.getSplits();
+              for(Split split : split){
+                  if(split.getUser() == payee){
+                      // continue not one need to pay anyone
+                  }else{
+                      res.get(payee).get(split.getUser()).add(split.getAmount());
+                      res.get(split.getUser()).get(payee).add(-1* split.getAmount());
+                  }
+              }
+              
+        }
+        
+        
+        List<Payemnts> allGroupPayments = paymentService.getAllPayments();
+        
+        for(Payemnt payment : allGroupPayments){
+            User paidTo = payment.getPaidTo();
+            User paidBy = payment.getPaidBy();
+            int amount = payment.getAmount();
+            res.get(paidTo).get(paidBy).add(amount);
+            res.get(paidBy).get(paidTo).add(-1*amount);
+        }
+        
+        return res;
+    }
+    
+}
+
+
+class SplitWise {
+    
+}
+
+
+
+
+
+class Codechef
+{
+	public static void main (String[] args) throws java.lang.Exception
+	{
+		// your code goes here
+
+	}
+}
