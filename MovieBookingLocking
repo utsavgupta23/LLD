@@ -1,0 +1,255 @@
+import java.util.*;
+import java.lang.*;
+import java.io.*;
+
+
+//Movie booking System
+
+Non-functional
+- High Consistent system (no double booking)
+
+- Movie
+- Theater
+- Screen
+- Show
+- Seat
+- Ticket
+- Payment
+
+
+class Theater { //dumb object
+    String theaterId;
+    String cityName;
+    List<Screen> allScreens;
+}
+
+
+class Screen { // dumb object -> fix attributes
+    String screenId;
+    List<Seat> seatMap;
+}
+
+class Movie {
+    String movieId;
+    String movieName;
+    int durationInMins;
+    // ..other atrbutes
+}
+
+class Show {
+    String showId;
+    Screen screen;
+    Movie movie;
+    long startTime; // epoch
+    long endTime;
+    List<ShowSeat> allSeats;
+}
+
+
+class Seat {
+    String rowId;
+    int seatNumber;
+    String seatId;
+    SeatType seatType;
+}
+
+class ShowSeat {
+    Seat seat;
+    SeatStatus status;
+    BigDecimal price;
+    int version;
+}
+
+enum SeatStatus {
+    AVAILABLE,
+    LOCKED,
+    BOOKED
+}
+
+enum SeatType {
+    REGULAR, XL 
+}
+
+class Ticket {
+    String ticketId;
+    Payment payment;
+    Show show;
+    User user;
+    TicketStatus ticketStatus;
+    List<ShowSeat> seats;
+    
+}
+
+class Payment {
+    String paymentId;
+    Double amountPaid;
+    PaymentStatus paymentStatus;
+}
+
+enum PaymentStatus {
+    SUCCESS, FAILED, PENDING
+}
+
+enum TicketStatus {
+    CANCELLED, BOOKED
+}
+
+
+interface PaymentStrategy {
+    Payment processPayment(User user, int fees);
+}
+
+
+class UpiPaymentStrategy {
+      Payment processPayment(User user, int fees){
+          //cleint Call 
+          
+      }
+}
+
+class ShowService {
+    
+    
+    
+    bool isAvailable(List<ShowSeat> selectedSeat){
+        for(ShowSeat currSeat : selectedSeat){
+            if(currSeat.getStatus() != SeatStatus.AVAILABLE){
+                return false;
+            }
+        }
+            return true;
+    }
+    
+    int getTotalFees(List<ShowSeat> selectedSeat){
+        int amount = 0;
+        for(ShowSeat currSeat : selectedSeat){
+              amount = amount + currSeat.getPrice();
+        }
+        return amount;
+    }
+    
+    void markBooked(List<ShowSeat> selectedSeat){
+        for(ShowSeat currSeat : selectedSeat){
+            currSeat.setStatus(setStatus.BOOKED);
+        }
+    }
+    
+}
+
+interface LockStrategy {
+    boolean lock(List<ShowSeat> selectedSeats);
+    void unlock(List<ShowSeat> selectedSeats);
+}
+
+class DBlock extends LcokStrategy{
+    
+    bool lockSeats(List<ShowSeat> selectedSeat){
+        for(ShowSeat currSeat : selectedSeat){
+            if(currSeat.getStatus() != SeatStatus.AVAILABLE){
+                return false;
+            }
+        }
+        
+        for(ShowSeat currSeat : selectedSeat){
+            currSeat.setStatus(SeatStatus.LOCKED);
+        }
+        return true;
+    }
+    
+    void unlockSeat((List<ShowSeat> selectedSeat){
+        for(ShowSeat currSeat : selectedSeat){
+            if(currSeat.getStatus() != SeatStatus.BOOKED){
+                currSeat.setStatus(SeatStatus.AVAILABLE);
+            }
+        }
+        
+    }
+}
+
+class InMemoryLockStrategy extends LockStrategy {
+    
+    ConcurrentHashMap<ShowSeat, Object> allLockedSeats;
+    
+    boolean lock (List<ShowSeat> seats){
+         List<ShowSeat> lockedSeats = new ArrayList<>();;
+        for(ShowSeat currSeat : seats){
+            if(allLockedSeats.putIfAbsent(currSeat , new Object())){
+                lockSeat.add(currSeat);
+            }else{
+                unlock(lockSeat);
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    void unlock(List<ShowSeat> seats){
+        for(ShowSeat currSeat  : seats){
+            lockSeat.remove(currSeat);
+        }
+    }
+    
+}
+
+class BookingService {
+    
+    ShowService showService;
+    PaymentStrategy paymentStrategy;
+    LockStrategy lockStrategy = DBlock;
+    
+    
+    Booking book(User user, Show show, List<ShowSeat>selectedSeats, PaymentStrategy paymentStrategy){
+        boolean acquired = false;
+        try {
+        
+            if(!lockStrategy.lock(selectedSeats)){
+                //throw exception 
+            }
+            
+            acquired = true;
+            
+            if(!showService.isAvailable(selectedSeats)){
+                throw Exception("Seat not avilable");
+            }
+            
+            
+            int amount = showService.getTotalFees(selectedSeats);
+            Payement payment = paymentStrategy.pay(amount);
+            if(payment.getStatus() == 'FAILED') {
+                //booking failed
+                throw new PaymentFailedException();
+            }
+            
+            showService.markBooked(selectedSeats);
+            Booking booking = new Booking(); //set attributes
+            return booking;
+        }
+    } finally {
+        if(acquired) lockStrategy.unlock(selectedSeats);
+    }
+}
+
+
+
+class BookMyShow {
+    
+    
+    
+    
+    
+    
+}
+
+
+
+
+
+
+class Codechef
+{
+	public static void main (String[] args) throws java.lang.Exception
+	{
+		// your code goes here
+
+	}
+}
